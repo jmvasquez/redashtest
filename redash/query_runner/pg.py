@@ -28,23 +28,23 @@ types_map = {
 }
 
 
-def _wait(conn):
+def _wait(conn, timeout=None):
     while 1:
         try:
             state = conn.poll()
             if state == psycopg2.extensions.POLL_OK:
                 break
             elif state == psycopg2.extensions.POLL_WRITE:
-                select.select([], [conn.fileno()], [])
+                select.select([], [conn.fileno()], [], timeout)
             elif state == psycopg2.extensions.POLL_READ:
-                select.select([conn.fileno()], [], [])
+                select.select([conn.fileno()], [], [], timeout)
             else:
                 raise psycopg2.OperationalError("poll() returned %s" % state)
         except select.error:
             raise psycopg2.OperationalError("select.error received")
 
 
-class PostgreSQL(BaseQueryRunner):
+class PostgreSQL(BaseSQLQueryRunner):
     @classmethod
     def configuration_schema(cls):
         return {
@@ -57,10 +57,12 @@ class PostgreSQL(BaseQueryRunner):
                     "type": "string"
                 },
                 "host": {
-                    "type": "string"
+                    "type": "string",
+                    "default": "127.0.0.1"
                 },
                 "port": {
-                    "type": "number"
+                    "type": "number",
+                    "default": 5432
                 },
                 "dbname": {
                     "type": "string",
@@ -75,8 +77,8 @@ class PostgreSQL(BaseQueryRunner):
     def type(cls):
         return "pg"
 
-    def __init__(self, configuration_json):
-        super(PostgreSQL, self).__init__(configuration_json)
+    def __init__(self, configuration):
+        super(PostgreSQL, self).__init__(configuration)
 
         values = []
         for k, v in self.configuration.iteritems():
@@ -84,7 +86,7 @@ class PostgreSQL(BaseQueryRunner):
 
         self.connection_string = " ".join(values)
 
-    def get_schema(self):
+    def _get_tables(self, schema):
         query = """
         SELECT table_schema, table_name, column_name
         FROM information_schema.columns
@@ -98,7 +100,6 @@ class PostgreSQL(BaseQueryRunner):
 
         results = json.loads(results)
 
-        schema = {}
         for row in results['rows']:
             if row['table_schema'] != 'public':
                 table_name = '{}.{}'.format(row['table_schema'], row['table_name'])
@@ -114,7 +115,7 @@ class PostgreSQL(BaseQueryRunner):
 
     def run_query(self, query):
         connection = psycopg2.connect(self.connection_string, async=True)
-        _wait(connection)
+        _wait(connection, timeout=10)
 
         cursor = connection.cursor()
 
@@ -140,7 +141,7 @@ class PostgreSQL(BaseQueryRunner):
             logging.exception(e)
             error = e.message
             json_data = None
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, InterruptException):
             connection.cancel()
             error = "Query cancelled by user."
             json_data = None
@@ -151,4 +152,37 @@ class PostgreSQL(BaseQueryRunner):
 
         return json_data, error
 
+
+class Redshift(PostgreSQL):
+    @classmethod
+    def type(cls):
+        return "redshift"
+
+    @classmethod
+    def configuration_schema(cls):
+        return {
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "number"
+                },
+                "dbname": {
+                    "type": "string",
+                    "title": "Database Name"
+                }
+            },
+            "required": ["dbname", "user", "password", "host", "port"],
+            "secret": ["password"]
+        }
+
 register(PostgreSQL)
+register(Redshift)

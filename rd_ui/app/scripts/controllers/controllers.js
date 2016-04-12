@@ -3,7 +3,8 @@
     if (!value) {
       return "-";
     }
-    return value.toDate().toLocaleString();
+
+    return value.format(clientConfig.dateTimeFormat);
   };
 
   var QuerySearchCtrl = function($scope, $location, $filter, Events, Query) {
@@ -149,64 +150,31 @@
     });
   }
 
-  var MainCtrl = function ($scope, $location, Dashboard, notifications) {
-    if (featureFlags.clientSideMetrics) {
-      $scope.$on('$locationChangeSuccess', function(event, newLocation, oldLocation) {
-        // This will be called once per actual page load.
-        Bucky.sendPagePerformance();
-      });
-    }
+  var MainCtrl = function ($scope, $location, Dashboard) {
+    $scope.$on("$routeChangeSuccess", function (event, current, previous, rejection) {
+      if ($scope.showPermissionError) {
+        $scope.showPermissionError = false;
+      }
+    });
 
+    $scope.$on("$routeChangeError", function (event, current, previous, rejection) {
+      if (rejection.status === 403) {
+        $scope.showPermissionError = true;
+      }
+    });
 
-    $scope.dashboards = [];
-    $scope.reloadDashboards = function () {
-      Dashboard.query(function (dashboards) {
-        $scope.dashboards = _.sortBy(dashboards, "name");
-        $scope.allDashboards = _.groupBy($scope.dashboards, function (d) {
-          parts = d.name.split(":");
-          if (parts.length == 1) {
-            return "Other";
-          }
-          return parts[0];
-        });
-        $scope.otherDashboards = $scope.allDashboards['Other'] || [];
-        $scope.groupedDashboards = _.omit($scope.allDashboards, 'Other');
-      });
-    };
+    $scope.location = String(document.location);
+    $scope.version = clientConfig.version;
+    $scope.newVersionAvailable = clientConfig.newVersionAvailable && currentUser.hasPermission("admin");
 
-    /**
-     * hasElements
-     * @param {Object} obj: object to check if it has properties or is empty
-     * @return {Boolean}: returns true if object has properties. Otherwise it returns false
-     *
-     */
-    $scope.hasElements = function(obj) {
-      return obj ? _.keys(obj).length : false;
-    };
-
-    $scope.searchQueries = function() {
-      $location.path('/queries/search').search({q: $scope.term});
-    };
-
-    $scope.reloadDashboards();
-
-    $scope.currentUser = currentUser;
     $scope.newDashboard = {
       'name': null,
       'layout': null
     }
-
-    $(window).click(function () {
-      notifications.getPermissions();
-    });
   };
 
-  var IndexCtrl = function ($scope, Events, Dashboard) {
-    Events.record(currentUser, "view", "page", "homepage");
-    $scope.$parent.pageTitle = "Home";
-  };
 
-  var PersonalIndexCtrl = function ($scope, Events, Dashboard, Query, FavoriteDashboards) {
+  var IndexCtrl = function ($scope, Events, Dashboard, Query, FavoriteDashboards) {
     var dashboard;
     Events.record(currentUser, "view", "page", "personal_homepage");
     $scope.$parent.pageTitle = "Home";
@@ -237,13 +205,12 @@
       FavoriteDashboards.updateFavorite({dashboardId: dashboardId, flag: false}, function() {
         $scope.favoriteDashboards.splice(index, 1);
       });
-    };  
+    };
   };
 
   angular.module('redash.controllers', [])
     .controller('QueriesCtrl', ['$scope', '$http', '$location', '$filter', 'Query', QueriesCtrl])
-    .controller('IndexCtrl', ['$scope', 'Events', 'Dashboard', IndexCtrl])
-    .controller('PersonalIndexCtrl', ['$scope', 'Events', 'Dashboard', 'Query', 'FavoriteDashboards', PersonalIndexCtrl])
-    .controller('MainCtrl', ['$scope', '$location', 'Dashboard', 'notifications', MainCtrl])
+    .controller('IndexCtrl', ['$scope', 'Events', 'Dashboard', 'Query','FavoriteDashboards', IndexCtrl])
+    .controller('MainCtrl', ['$scope', '$location', 'Dashboard', MainCtrl])
     .controller('QuerySearchCtrl', ['$scope', '$location', '$filter', 'Events', 'Query',  QuerySearchCtrl]);
 })();

@@ -1,30 +1,38 @@
 import time
 from flask import request
-from flask.ext.restful import abort
+from flask_restful import abort
 from funcy import project
 from peewee import IntegrityError
 
 from redash import models
-from redash.wsgi import api
-from redash.tasks import record_event
 from redash.permissions import require_permission, require_admin_or_owner, is_admin_or_owner, \
-    require_permission_or_owner
-from redash.handlers.base import BaseResource, require_fields
+    require_permission_or_owner, require_admin
+from redash.handlers.base import BaseResource, require_fields, get_object_or_404
+
+from redash.authentication.account import invite_link_for_user, send_invite_email, send_password_reset_email
+
+
+def invite_user(org, inviter, user):
+    invite_url = invite_link_for_user(user)
+    send_invite_email(inviter, user, invite_url, org)
+    return invite_url
 
 
 class UserListResource(BaseResource):
     @require_permission('list_users')
     def get(self):
-        return [u.to_dict() for u in models.User.select()]
+        return [u.to_dict() for u in models.User.all(self.current_org)]
 
-    @require_permission('admin')
+    @require_admin
     def post(self):
-        # TODO: send invite.
         req = request.get_json(force=True)
-        require_fields(req, ('name', 'email', 'password'))
+        require_fields(req, ('name', 'email'))
 
-        user = models.User(name=req['name'], email=req['email'])
-        user.hash_password(req['password'])
+        user = models.User(org=self.current_org,
+                           name=req['name'],
+                           email=req['email'],
+                           groups=[self.current_org.default_group.id])
+
         try:
             user.save()
         except IntegrityError as e:
@@ -33,27 +41,50 @@ class UserListResource(BaseResource):
 
             abort(500)
 
-        record_event.delay({
-            'user_id': self.current_user.id,
+        self.record_event({
             'action': 'create',
             'timestamp': int(time.time()),
             'object_id': user.id,
             'object_type': 'user'
         })
 
-        return user.to_dict()
+        invite_url = invite_user(self.current_org, self.current_user, user)
+
+        d = user.to_dict()
+        d['invite_link'] = invite_url
+
+        return d
+
+
+class UserInviteResource(BaseResource):
+    @require_admin
+    def post(self, user_id):
+        user = models.User.get_by_id_and_org(user_id, self.current_org)
+        invite_url = invite_user(self.current_org, self.current_user, user)
+
+        d = user.to_dict()
+        d['invite_link'] = invite_url
+
+        return d
+
+
+class UserResetPasswordResource(BaseResource):
+    @require_admin
+    def post(self, user_id):
+        user = models.User.get_by_id_and_org(user_id, self.current_org)
+        reset_link = send_password_reset_email(user)
 
 
 class UserResource(BaseResource):
     def get(self, user_id):
         require_permission_or_owner('list_users', user_id)
-        user = models.User.get_by_id(user_id)
-        
+        user = get_object_or_404(models.User.get_by_id_and_org, user_id, self.current_org)
+
         return user.to_dict(with_api_key=is_admin_or_owner(user_id))
 
     def post(self, user_id):
         require_admin_or_owner(user_id)
-        user = models.User.get_by_id(user_id)
+        user = models.User.get_by_id_and_org(user_id, self.current_org)
 
         req = request.get_json(True)
 
@@ -82,8 +113,7 @@ class UserResource(BaseResource):
 
             abort(400, message=message)
 
-        record_event.delay({
-            'user_id': self.current_user.id,
+        self.record_event({
             'action': 'edit',
             'timestamp': int(time.time()),
             'object_id': user.id,
@@ -92,9 +122,5 @@ class UserResource(BaseResource):
         })
 
         return user.to_dict(with_api_key=is_admin_or_owner(user_id))
-
-
-api.add_resource(UserListResource, '/api/users', endpoint='users')
-api.add_resource(UserResource, '/api/users/<user_id>', endpoint='user')
 
 

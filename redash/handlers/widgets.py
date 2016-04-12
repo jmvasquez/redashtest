@@ -3,21 +3,31 @@ import json
 from flask import request
 
 from redash import models
-from redash.wsgi import api
-from redash.permissions import require_permission
+from redash.permissions import require_permission, require_admin_or_owner, require_access, view_only
 from redash.handlers.base import BaseResource
 
 
-class WidgetListAPI(BaseResource):
+class WidgetListResource(BaseResource):
     @require_permission('edit_dashboard')
     def post(self):
         widget_properties = request.get_json(force=True)
+        dashboard = models.Dashboard.get_by_id_and_org(widget_properties.pop('dashboard_id'), self.current_org)
+        require_admin_or_owner(dashboard.user_id)
+
         widget_properties['options'] = json.dumps(widget_properties['options'])
         widget_properties.pop('id', None)
-        widget_properties['dashboard'] = widget_properties.pop('dashboard_id')
-        widget_properties['visualization'] = widget_properties.pop('visualization_id')
-        widget = models.Widget(**widget_properties)
-        widget.save()
+        widget_properties['dashboard'] = dashboard
+
+        visualization_id = widget_properties.pop('visualization_id')
+        if visualization_id:
+            visualization = models.Visualization.get_by_id_and_org(visualization_id, self.current_org)
+            require_access(visualization.query.groups, self.current_user, view_only)
+        else:
+            visualization = None
+
+        widget_properties['visualization'] = visualization
+
+        widget = models.Widget.create(**widget_properties)
 
         layout = json.loads(widget.dashboard.layout)
         new_row = True
@@ -40,11 +50,12 @@ class WidgetListAPI(BaseResource):
         return {'widget': widget.to_dict(), 'layout': layout, 'new_row': new_row}
 
 
-class WidgetAPI(BaseResource):
+class WidgetResource(BaseResource):
     @require_permission('edit_dashboard')
     def delete(self, widget_id):
-        widget = models.Widget.get(models.Widget.id == widget_id)
+        widget = models.Widget.get_by_id_and_org(widget_id, self.current_org)
+        require_admin_or_owner(widget.dashboard.user_id)
         widget.delete_instance()
 
-api.add_resource(WidgetListAPI, '/api/widgets', endpoint='widgets')
-api.add_resource(WidgetAPI, '/api/widgets/<int:widget_id>', endpoint='widget')
+        return {'layout': widget.dashboard.layout}
+

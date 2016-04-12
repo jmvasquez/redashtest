@@ -1,8 +1,12 @@
+More details about the future of re:dash : http://bit.ly/journey-first-step
+
+---
+
 <p align="center">
-  <img title="re:dash" src='http://redash.io/static/img/redash_logo.png' width="200px"/>
+  <img title="re:dash" src='http://redash.io/static/old_img/redash_logo.png' width="200px"/>
 </p>
 <p align="center">
-    <img title="Build Status" src='https://circleci.com/gh/EverythingMe/redash.png?circle-token=8a695aa5ec2cbfa89b48c275aea298318016f040'/>
+    <img title="Build Status" src='https://circleci.com/gh/getredash/redash.png?circle-token=8a695aa5ec2cbfa89b48c275aea298318016f040'/>
 </p>
 
 **_re:dash_** is our take on freeing the data within our company in a way that will better fit our culture and usage patterns.
@@ -22,31 +26,27 @@ Presto, Google Spreadsheets, Cloudera Impala, Hive and custom scripts.
 
 ## Demo
 
-![Screenshots](https://raw.github.com/EverythingMe/redash/screenshots/screenshots.gif)
+<img src="https://cloud.githubusercontent.com/assets/71468/12611424/1faf4d6a-c4f5-11e5-89b5-31efc1155d2c.gif" width="60%"/>
 
 You can try out the demo instance: http://demo.redash.io/ (login with any Google account).
 
 ## Getting Started
 
 * [Setting up re:dash instance](http://redash.io/deployment/setup.html) (includes links to ready made AWS/GCE images).
-* Additional documentation in the [Wiki](https://github.com/everythingme/redash/wiki).
+* [Documentation](http://docs.redash.io).
 
 
 ## Getting help
 
 * [Google Group (mailing list)](https://groups.google.com/forum/#!forum/redash-users): the best place to get updates about new releases or ask general questions.
-* Find us [on gitter](https://gitter.im/EverythingMe/redash#) (chat).
-* Contact Arik, the maintainer directly: arik@everything.me.
-
-## Roadmap
-
-TBD.
+* Find us [on gitter](https://gitter.im/getredash/redash#) (chat).
+* Contact Arik, the maintainer directly: arik@redash.io.
 
 ## Reporting Bugs and Contributing Code
 
-* Want to report a bug or request a feature? Please open [an issue](https://github.com/everythingme/redash/issues/new).
-* Want to help us build **_re:dash_**? Fork the project and make a pull request. We need all the help we can get!
+* Want to report a bug or request a feature? Please open [an issue](https://github.com/getredash/redash/issues/new).
+* Want to help us build **_re:dash_**? Fork the project, edit in a [dev environment](http://docs.redash.io/en/latest/dev/vagrant.html), and make a pull request. We need all the help we can get!
 
 ## License
 
-See [LICENSE](https://github.com/EverythingMe/redash/blob/master/LICENSE) file.
+See [LICENSE](https://github.com/getredash/redash/blob/master/LICENSE) file.

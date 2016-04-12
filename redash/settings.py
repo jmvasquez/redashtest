@@ -1,7 +1,7 @@
 import json
 import os
 import urlparse
-from funcy import distinct
+from funcy import distinct, remove
 
 
 def parse_db_url(url):
@@ -55,6 +55,7 @@ def all_settings():
 NAME = os.environ.get('REDASH_NAME', 're:dash')
 
 REDIS_URL = os.environ.get('REDASH_REDIS_URL', "redis://localhost:6379/0")
+PROXIES_COUNT = int(os.environ.get('REDASH_PROXIES_COUNT', "1"))
 
 STATSD_HOST = os.environ.get('REDASH_STATSD_HOST', "127.0.0.1")
 STATSD_PORT = int(os.environ.get('REDASH_STATSD_PORT', "8125"))
@@ -69,12 +70,16 @@ CELERY_BACKEND = os.environ.get("REDASH_CELERY_BACKEND", CELERY_BROKER)
 
 # The following enables periodic job (every 5 minutes) of removing unused query results.
 QUERY_RESULTS_CLEANUP_ENABLED = parse_boolean(os.environ.get("REDASH_QUERY_RESULTS_CLEANUP_ENABLED", "true"))
+QUERY_RESULTS_CLEANUP_COUNT = int(os.environ.get("REDASH_QUERY_RESULTS_CLEANUP_COUNT", "100"))
+QUERY_RESULTS_CLEANUP_MAX_AGE = int(os.environ.get("REDASH_QUERY_RESULTS_CLEANUP_MAX_AGE", "7"))
 
 AUTH_TYPE = os.environ.get("REDASH_AUTH_TYPE", "api_key")
 PASSWORD_LOGIN_ENABLED = parse_boolean(os.environ.get("REDASH_PASSWORD_LOGIN_ENABLED", "true"))
+ENFORCE_HTTPS = parse_boolean(os.environ.get("REDASH_ENFORCE_HTTPS", "false"))
 
-# Google Apps domain to allow access from; any user with email in this Google Apps will be allowed
-# access
+MULTI_ORG = parse_boolean(os.environ.get("REDASH_MULTI_ORG", "false"))
+
+# The following is deprecated and should be defined with the Organization object
 GOOGLE_APPS_DOMAIN = set_from_string(os.environ.get("REDASH_GOOGLE_APPS_DOMAIN", ""))
 
 GOOGLE_CLIENT_ID = os.environ.get("REDASH_GOOGLE_CLIENT_ID", "")
@@ -85,11 +90,39 @@ SAML_METADATA_URL = os.environ.get("REDASH_SAML_METADATA_URL", "")
 SAML_LOGIN_ENABLED = SAML_METADATA_URL != ""
 SAML_CALLBACK_SERVER_NAME = os.environ.get("REDASH_SAML_CALLBACK_SERVER_NAME", "")
 
-STATIC_ASSETS_PATH = fix_assets_path(os.environ.get("REDASH_STATIC_ASSETS_PATH", "../rd_ui/app/"))
+# Enables the use of an externally-provided and trusted remote user via an HTTP
+# header.  The "user" must be an email address.
+#
+# By default the trusted header is X-Forwarded-Remote-User.  You can change
+# this by setting REDASH_REMOTE_USER_HEADER.
+#
+# Enabling this authentication method is *potentially dangerous*, and it is
+# your responsibility to ensure that only a trusted frontend (usually on the
+# same server) can talk to the redash backend server, otherwise people will be
+# able to login as anyone they want by directly talking to the redash backend.
+# You must *also* ensure that any special header in the original request is
+# removed or always overwritten by your frontend, otherwise your frontend may
+# pass it through to the backend unchanged.
+#
+# Note that redash will only check the remote user once, upon the first need
+# for a login, and then set a cookie which keeps the user logged in.  Dropping
+# the remote user header after subsequent requests won't automatically log the
+# user out.  Doing so could be done with further work, but usually it's
+# unnecessary.
+#
+# If you also set REDASH_PASSWORD_LOGIN_ENABLED to false, then your
+# authentication will be seamless.  Otherwise a link will be presented on the
+# login page to trigger remote user auth.
+REMOTE_USER_LOGIN_ENABLED = parse_boolean(os.environ.get("REDASH_REMOTE_USER_LOGIN_ENABLED", "false"))
+REMOTE_USER_HEADER = os.environ.get("REDASH_REMOTE_USER_HEADER", "X-Forwarded-Remote-User")
+
+# Usually it will be a single path, but we allow to specify additional ones to override the default assets. Only the
+# last one will be used for Flask templates.
+STATIC_ASSETS_PATHS = [fix_assets_path(path) for path in os.environ.get("REDASH_STATIC_ASSETS_PATH", "../rd_ui/app/").split(',')]
+
 JOB_EXPIRY_TIME = int(os.environ.get("REDASH_JOB_EXPIRY_TIME", 3600 * 6))
 COOKIE_SECRET = os.environ.get("REDASH_COOKIE_SECRET", "c292a0a3aa32397cdb050e233733900f")
 LOG_LEVEL = os.environ.get("REDASH_LOG_LEVEL", "INFO")
-ANALYTICS = os.environ.get("REDASH_ANALYTICS", "")
 
 # Mail settings:
 MAIL_SERVER = os.environ.get('REDASH_MAIL_SERVER', 'localhost')
@@ -103,6 +136,14 @@ MAIL_MAX_EMAILS = os.environ.get('REDASH_MAIL_MAX_EMAILS', None)
 MAIL_ASCII_ATTACHMENTS = parse_boolean(os.environ.get('REDASH_MAIL_ASCII_ATTACHMENTS', 'false'))
 
 HOST = os.environ.get('REDASH_HOST', '')
+
+HIPCHAT_API_TOKEN = os.environ.get('REDASH_HIPCHAT_API_TOKEN', None)
+HIPCHAT_API_URL = os.environ.get('REDASH_HIPCHAT_API_URL', None)
+HIPCHAT_ROOM_ID = os.environ.get('REDASH_HIPCHAT_ROOM_ID', None)
+
+WEBHOOK_ENDPOINT = os.environ.get('REDASH_WEBHOOK_ENDPOINT', None)
+WEBHOOK_USERNAME = os.environ.get('REDASH_WEBHOOK_USERNAME', None)
+WEBHOOK_PASSWORD = os.environ.get('REDASH_WEBHOOK_PASSWORD', None)
 
 # CORS settings for the Query Result API (and possbily future external APIs).
 # In most cases all you need to do is set REDASH_CORS_ACCESS_CONTROL_ALLOW_ORIGIN
@@ -127,26 +168,43 @@ default_query_runners = [
     'redash.query_runner.hive_ds',
     'redash.query_runner.impala_ds',
     'redash.query_runner.vertica',
-    'redash.query_runner.treasuredata'
+    'redash.query_runner.treasuredata',
+    'redash.query_runner.sqlite',
+    'redash.query_runner.dynamodb_sql',
+    'redash.query_runner.mssql',
 ]
 
 enabled_query_runners = array_from_string(os.environ.get("REDASH_ENABLED_QUERY_RUNNERS", ",".join(default_query_runners)))
 additional_query_runners = array_from_string(os.environ.get("REDASH_ADDITIONAL_QUERY_RUNNERS", ""))
+disabled_query_runners = array_from_string(os.environ.get("REDASH_DISABLED_QUERY_RUNNERS", ""))
 
-QUERY_RUNNERS = distinct(enabled_query_runners + additional_query_runners)
+QUERY_RUNNERS = remove(set(disabled_query_runners), distinct(enabled_query_runners + additional_query_runners))
+
+EVENT_REPORTING_WEBHOOKS = array_from_string(os.environ.get("REDASH_EVENT_REPORTING_WEBHOOKS", ""))
 
 # Support for Sentry (http://getsentry.com/). Just set your Sentry DSN to enable it:
 SENTRY_DSN = os.environ.get("REDASH_SENTRY_DSN", "")
 
 # Client side toggles:
 ALLOW_SCRIPTS_IN_USER_INPUT = parse_boolean(os.environ.get("REDASH_ALLOW_SCRIPTS_IN_USER_INPUT", "false"))
-CLIENT_SIDE_METRICS = parse_boolean(os.environ.get("REDASH_CLIENT_SIDE_METRICS", "false"))
-# http://api.highcharts.com/highcharts#plotOptions.series.turboThreshold
-HIGHCHARTS_TURBO_THRESHOLD = int(os.environ.get("REDASH_HIGHCHARTS_TURBO_THRESHOLD", "1000"))
+DATE_FORMAT = os.environ.get("REDASH_DATE_FORMAT", "DD/MM/YY")
 
 # Features:
 FEATURE_ALLOW_ALL_TO_EDIT_QUERIES = parse_boolean(os.environ.get("REDASH_FEATURE_ALLOW_ALL_TO_EDIT", "true"))
 FEATURE_TABLES_PERMISSIONS = parse_boolean(os.environ.get("REDASH_FEATURE_TABLES_PERMISSIONS", "false"))
+VERSION_CHECK = parse_boolean(os.environ.get("REDASH_VERSION_CEHCK", "true"))
 
 # BigQuery
 BIGQUERY_HTTP_TIMEOUT = int(os.environ.get("REDASH_BIGQUERY_HTTP_TIMEOUT", "600"))
+
+# Enhance schema fetching
+SCHEMA_RUN_TABLE_SIZE_CALCULATIONS = parse_boolean(os.environ.get("REDASH_SCHEMA_RUN_TABLE_SIZE_CALCULATIONS", "false"))
+
+### Common Client config
+COMMON_CLIENT_CONFIG = {
+    'allowScriptsInUserInput': ALLOW_SCRIPTS_IN_USER_INPUT,
+    'dateFormat': DATE_FORMAT,
+    'dateTimeFormat': "{0} HH:mm".format(DATE_FORMAT),
+    'allowAllToEditQueries': FEATURE_ALLOW_ALL_TO_EDIT_QUERIES,
+    'mailSettingsMissing': MAIL_DEFAULT_SENDER is None
+}

@@ -2,6 +2,18 @@ body {
   padding-top: 70px;
 }
 
+body.headless {
+  padding-top: 0px;
+}
+
+body.headless nav.app-header {
+  display: none;
+}
+
+a[ng-click] {
+  cursor: pointer;
+}
+
 a.link {
   cursor: pointer;
 }
@@ -24,10 +36,6 @@ a.navbar-brand {
 
 a.navbar-brand img {
   height: 40px;
-}
-
-.graph {
-  height: 300px;
 }
 
 .avatar {
@@ -55,6 +63,7 @@ a.navbar-brand img {
   content: '▸';
   margin-right: 5px;
 }
+
 .details-toggle.open::before {
   content: '▾';
   margin-right: 5px;
@@ -308,6 +317,7 @@ to add those CSS styles here. */
 
 .nav-tabs > li.rd-tab-btn {
   float: right;
+  padding-left: 10px;
 }
 
 /* light version of bootstrap's form-control */
@@ -320,8 +330,8 @@ to add those CSS styles here. */
   background-color: #ffffff;
   border: 1px solid #cccccc;
   border-radius: 4px;
-  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
-  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.075);
+  -webkit-box-shadow: none;
+  box-shadow: none;
   -webkit-transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
   transition: border-color ease-in-out 0.15s, box-shadow ease-in-out 0.15s;
 }
@@ -383,7 +393,7 @@ counter-renderer counter-name {
 }
 
 .box .center {
-  stroke-dasharray: 3,3;
+  stroke-dasharray: 3, 3;
 }
 
 .box .outlier {
@@ -431,12 +441,24 @@ counter-renderer counter-name {
 
 .schema-container {
   height: 300px;
+  position: relative;
+  z-index: 10;
+  resize: both;
+  background: white;
+}
+
+.schema-container .form-control {
+  margin-bottom: 10px;
+  box-shadow: none;
 }
 
 .schema-browser {
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
+  background: white;
+  resize: both;
+  border: 1px solid rgba(0,0,0,.15);
 }
 
 div.table-name {
@@ -444,6 +466,11 @@ div.table-name {
   text-overflow: ellipsis;
   white-space: nowrap;
   cursor: pointer;
+  padding: 0 10px;
+}
+
+div.table-name:hover {
+  background: #f4f4f4;
 }
 
 .blankslate {
@@ -451,38 +478,142 @@ div.table-name {
   padding: 30px;
 }
 
-.dashboard-favorite-icon {
-  margin-right: 5px;
-  cursor: pointer;
-  color: #FFD600;
-  padding-top: 2px;
-}
-
-.remove-favorite-icon {
-  margin-top: 1px;
-  font-size: 18px;
-  cursor: pointer;
-  color: #FFD600;
-}
-
-.header-left-nav {
-  min-width: 222px;
-}
-
-/*
-bootstrap's hidden-xs class adds display:block when not hidden
-use this class when you need to keep the original display value
-*/
-@media (max-width: 767px) {
-  .rd-hidden-xs {
-    display: none !important;
-  }
-}
-
 .log-container {
   margin-bottom: 50px;
 }
 
-.selected-option-cTable {
-  background-color: lightgrey;
+/* Footer */
+
+.footer {
+  color: #818d9f;
+  padding-bottom: 30px;
 }
+
+.footer a {
+  color: #818d9f;
+  margin-left: 20px;
+}
+
+.col-table .missing-value {
+  color: #b94a48;
+}
+
+.col-table .super-small-input {
+  padding-left: 3px;
+  height: 24px;
+}
+
+.col-table .ui-select-toggle, .col-table .ui-select-search {
+  padding: 2px;
+  padding-left: 5px;
+  height: 24px;
+}
+
+.clearable button {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Immediately apply ng-cloak, instead of waiting for angular.js to load: */
+[ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
+  display: none !important;
+}
+
+/* Smart Table */
+
+.smart-table {
+  margin-bottom: 0px;
+}
+
+.smart-table .pagination {
+  margin-bottom: 5px;
+  margin-top: 10px;
+}
+
+/* Embed Code */
+.embed-code code {
+  display: block;
+  white-space: normal;
+  width: 100%;
+}
+
+.embed-code i {
+  cursor: pointer;
+}
+
+.voffset {
+  margin-top: 2px;
+}
+
+.voffset1 {
+  margin-top: 5px;
+}
+
+.voffset2 {
+  margin-top: 10px;
+}
+
+.voffset3 {
+  margin-top: 15px;
+}
+
+.voffset4 {
+  margin-top: 30px;
+}
+
+.voffset5 {
+  margin-top: 40px;
+}
+
+.voffset6 {
+  margin-top: 60px;
+}
+
+.voffset7 {
+  margin-top: 80px;
+}
+
+.voffset8 {
+  margin-top: 100px;
+}
+
+.voffset9 {
+  margin-top: 150px;
+}
+
+.overlay {
+  background-color: #808080;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0;
+  z-index: 1000;
+  opacity: 0.7;
+}
+
+.container-fluid {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.m-b-10 {
+  margin-bottom: 10px;
+}
+
+/* Bootstrap Overrides */
+
+.flex-parent {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.collapsing,
+.collapse.in {
+    background: #f4f4f4;
+    padding: 5px 10px;
+    transition: all 0.35s ease;
+}
+

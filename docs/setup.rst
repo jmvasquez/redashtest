@@ -2,7 +2,7 @@ Setting up re:dash instance
 ###########################
 
 The `provisioning
-script <https://github.com/EverythingMe/redash/blob/master/setup/bootstrap.sh>`__
+script <https://raw.githubusercontent.com/getredash/redash/master/setup/ubuntu/bootstrap.sh>`__
 works on Ubuntu 12.04, Ubuntu 14.04 and Debian Wheezy. This script
 installs all needed dependencies and creates basic setup.
 
@@ -18,15 +18,19 @@ AWS
 Launch the instance with from the pre-baked AMI (for small deployments
 t2.micro should be enough):
 
--  us-east-1: `ami-e32b5986 <https://console.aws.amazon.com/ec2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-e32b5986>`__
--  us-west-1: `ami-abcf0bef <https://console.aws.amazon.com/ec2/home?region=us-west-1#LaunchInstanceWizard:ami=ami-abcf0bef>`__
--  us-west-2: `ami-bd89978d <https://console.aws.amazon.com/ec2/home?region=us-west-2#LaunchInstanceWizard:ami=ami-bd89978d>`__
--  eu-west-1: `ami-15eac562 <https://console.aws.amazon.com/ec2/home?region=eu-west-1#LaunchInstanceWizard:ami=ami-15eac562>`__
--  eu-central-1: `ami-520f0c4f <https://console.aws.amazon.com/ec2/home?region=eu-central-1#LaunchInstanceWizard:ami=ami-520f0c4f>`__
--  sa-east-1: `ami-e79501fa <https://console.aws.amazon.com/ec2/home?region=sa-east-1#LaunchInstanceWizard:ami=ami-e79501fa>`__
--  ap-northeast-1: `ami-fae373fa <https://console.aws.amazon.com/ec2/home?region=ap-northeast-1#LaunchInstanceWizard:ami=ami-fae373fa>`__
--  ap-southeast-2: `ami-578fc16d <https://console.aws.amazon.com/ec2/home?region=ap-southeast-2#LaunchInstanceWizard:ami=ami-578fc16d>`__
--  ap-southeast-1: `ami-20081c72 <https://console.aws.amazon.com/ec2/home?region=ap-southeast-1#LaunchInstanceWizard:ami=ami-20081c72>`__
+-  us-east-1: `ami-a7ddfbcd <https://console.aws.amazon.com/ec2/home?region=us-east-1#LaunchInstanceWizard:ami=ami-a7ddfbcd>`__
+-  us-west-1: `ami-269feb46 <https://console.aws.amazon.com/ec2/home?region=us-west-1#LaunchInstanceWizard:ami=ami-269feb46>`__
+-  us-west-2: `ami-435fba23 <https://console.aws.amazon.com/ec2/home?region=us-west-2#LaunchInstanceWizard:ami=ami-435fba23>`__
+-  eu-west-1: `ami-b4c277c7 <https://console.aws.amazon.com/ec2/home?region=eu-west-1#LaunchInstanceWizard:ami=ami-b4c277c7>`__
+-  eu-central-1: `ami-07ced76b <https://console.aws.amazon.com/ec2/home?region=eu-central-1#LaunchInstanceWizard:ami=ami-07ced76b>`__
+-  sa-east-1: `ami-6e2eaf02 <https://console.aws.amazon.com/ec2/home?region=sa-east-1#LaunchInstanceWizard:ami=ami-6e2eaf02>`__
+-  ap-northeast-1: `ami-aa5a64c4 <https://console.aws.amazon.com/ec2/home?region=ap-northeast-1#LaunchInstanceWizard:ami=ami-aa5a64c4>`__
+-  ap-southeast-1: `ami-1c45897f <https://console.aws.amazon.com/ec2/home?region=ap-southeast-1#LaunchInstanceWizard:ami=ami-1c45897f>`__
+-  ap-southeast-2: `ami-42b79221 <https://console.aws.amazon.com/ec2/home?region=ap-southeast-2#LaunchInstanceWizard:ami=ami-42b79221>`__
+
+(the above AMIs are of version: 0.9.1)
+
+When launching the instance make sure to use a security group, that **only** allows incoming traffic on: port 22 (SSH), 80 (HTTP) and 443 (HTTPS).
 
 Now proceed to `"Setup" <#setup>`__.
 
@@ -37,7 +41,7 @@ First, you need to add the images to your account:
 
 .. code:: bash
 
-    $ gcloud compute images create "redash-080-b1058" --source-uri gs://redash-images/redash.0.8.0.b1058.tar.gz
+    $ gcloud compute images create "redash-091-b1377" --source-uri gs://redash-images/redash.0.9.1.b1377.tar.gz
 
 Next you need to launch an instance using this image (n1-standard-1
 instance type is recommended). If you plan using re:dash with BigQuery,
@@ -46,13 +50,13 @@ you can use a dedicated image which comes with BigQuery preconfigured
 
 .. code:: bash
 
-    $ gcloud compute images create "redash-080-b1058-bq" --source-uri gs://redash-images/redash.0.8.0.b1058-bq.tar.gz
+    $ gcloud compute images create "redash-091-b1377-bq" --source-uri gs://redash-images/redash.0.9.1.b1377-bq.tar.gz
 
 Note that you need to launch this instance with BigQuery access:
 
 .. code:: bash
 
-    $ gcloud compute instances create <your_instance_name> --image redash-080-b1058-bq --scopes storage-ro,bigquery
+    $ gcloud compute instances create <your_instance_name> --image redash-091-b1377-bq --scopes storage-ro,bigquery
 
 (the same can be done from the web interface, just make sure to enable
 BigQuery access)
@@ -90,10 +94,11 @@ file.
 1. Update the cookie secret (important! otherwise anyone can sign new
    cookies and impersonate users): change "veryverysecret" in the line:
    ``export REDASH_COOKIE_SECRET=veryverysecret`` to something else (you
-   can use ``pwgen 32 -1`` to generate random string).
+   can run the command ``pwgen 32 -1`` to generate a random string).
 
 2. By default we create an admin user with the password "admin". You
-   can change this password at: ``/users/me#password``.
+   can change this password opening the: ``/users/me#password`` page after
+   logging in as admin.
 
 3. If you want to use Google OAuth to authenticate users, you need to
    create a Google Developers project (see :doc:`instructions </misc/google_developers_project>`)
@@ -103,22 +108,28 @@ file.
 
    export REDASH_GOOGLE_CLIENT_ID=""
    export REDASH_GOOGLE_CLIENT_SECRET=""
-   export REDASH_GOOGLE_APPS_DOMAIN=""
 
 
+4. Configure the domain(s) you want to allow to use with Google Apps, by running the command:
 
-``REDASH_GOOGLE_CLIENT_ID`` and ``REDASH_GOOGLE_CLIENT_SECRET`` are the values you get after registering with Google. ``READASH_GOOGLE_APPS_DOMAIN`` is used in case you want to limit access to single Google apps domain (*if you leave it empty anyone with a Google account can access your instance*).
+.. code::
 
-4. Restart the web server to apply the configuration changes:
+   cd /opt/redash/current
+   sudo -u redash bin/run ./manage.py org set_google_apps_domains {{domains}}
+
+
+If you're passing multiple domains, separate them with commas.
+
+
+5. Restart the web server to apply the configuration changes:
    ``sudo supervisorctl restart redash_server``.
 
-5. Once you have Google OAuth enabled, you can login using your Google
+6. Once you have Google OAuth enabled, you can login using your Google
    Apps account. If you want to grant admin permissions to some users,
-   you can do this by editing the user profile and enabling admin
-   permission for it.
+   you can do this by adding them to the admin group (from ``/groups`` page).
 
-6. If you don't use Google OAuth or just need username/password logins,
-   you can create additional users at: ``/users/new``.
+7. If you don't use Google OAuth or just need username/password logins,
+   you can create additional users by opening the ``/users/new`` page.
 
 Datasources
 -----------
@@ -128,6 +139,32 @@ to create new data source connection.
 
 See :doc:`documentation </datasources>` for the different options.
 Your instance comes ready with dependencies needed to setup supported sources.
+
+Mail Configuration
+------------------
+
+For the system to be able to send emails (for example when alerts trigger), you need to set the mail server to use and the
+host name of your re:dash server. If you're using one of our images, you can do this by editing the `.env` file:
+
+.. code::
+
+   # Note that not all values are required, as they have default values.
+
+   export REDASH_MAIL_SERVER="" # default: localhost
+   export REDASH_MAIL_PORT="" # default: 25
+   export REDASH_MAIL_USE_TLS="" # default: False
+   export REDASH_MAIL_USE_SSL="" # default: False
+   export REDASH_MAIL_USERNAME="" # default: None
+   export REDASH_MAIL_PASSWORD="" # default: None
+   export REDASH_MAIL_DEFAULT_SENDER="" # Email address to send from
+
+   export REDASH_HOST="" # base address of your re:dash instance, for example: "https://demo.redash.io"
+
+- Note that not all values are required, as there are default values.
+- It's recommended to use some mail service, like `Amazon SES <https://aws.amazon.com/ses/>`__, `Mailgun <http://www.mailgun.com/>`__
+  or `Mandrill <http://mandrillapp.com>`__ to send emails to ensure deliverability.
+
+To test email configuration, you can run `bin/run ./manage.py send_test_mail` (from `/opt/redash/current`).
 
 How to upgrade?
 ---------------

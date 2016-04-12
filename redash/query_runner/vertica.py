@@ -27,7 +27,8 @@ types_map = {
     117: TYPE_STRING
 }
 
-class Vertica(BaseQueryRunner):
+
+class Vertica(BaseSQLQueryRunner):
     @classmethod
     def configuration_schema(cls):
         return {
@@ -64,10 +65,10 @@ class Vertica(BaseQueryRunner):
 
         return True
 
-    def __init__(self, configuration_json):
-        super(Vertica, self).__init__(configuration_json)
+    def __init__(self, configuration):
+        super(Vertica, self).__init__(configuration)
 
-    def get_schema(self):
+    def _get_tables(self, schema):
         query = """
         Select table_schema, table_name, column_name from columns where is_system_table=false;
         """
@@ -79,7 +80,6 @@ class Vertica(BaseQueryRunner):
 
         results = json.loads(results)
 
-        schema = {}
         for row in results['rows']:
             table_name = '{}.{}'.format(row['table_schema'], row['table_name'])
 
@@ -94,14 +94,14 @@ class Vertica(BaseQueryRunner):
         import vertica_python
 
         if query == "":
-            json_data=None
+            json_data = None
             error = "Query is empty"
             return json_data, error
-        
+
         connection = None
         try:
             conn_info = {
-                'host': self.configuration.get('host', ''), 
+                'host': self.configuration.get('host', ''),
                 'port': self.configuration.get('port', 5433),
                 'user': self.configuration.get('user', ''),
                 'password': self.configuration.get('password', ''),

@@ -1,54 +1,71 @@
-'use strict';
+(function() {
+  var module = angular.module('redash.visualization');
 
-(function () {
-	var module = angular.module('redash.visualization');
-	module.config(['VisualizationProvider', function (VisualizationProvider) {
-	var renderTemplate = 
-	'<pivot-renderer '  + 
-	' options="visualization.options" query-result="queryResult"> ' +
-	' </pivot-renderer>';	
-	var editTemplate = '<pivot-editor></pivot-editor>';
-	var defaultOptions = {};
+  module.directive('pivotTableRenderer', function () {
+    return {
+      restrict: 'E',
+      scope: {
+        queryResult: '=',
+        visualization: '='
+      },
+      template: "",
+      replace: false,
+      link: function($scope, element) {
+        $scope.$watch('queryResult && queryResult.getData()', function (data) {
+          if (!data) {
+            return;
+          }
 
-	VisualizationProvider.registerVisualization({
-	 type: 'PIVOT',
-	 name: 'Pivot',
-	 renderTemplate: renderTemplate,
-	 editorTemplate: editTemplate,
-	 defaultOptions: defaultOptions
-	});
-	}
-]);
-	  
-	module.directive('pivotRenderer', function() {
-		return {
-			restrict: 'E',	
-			template:'',
-			replace: false,
-			link: function($scope, element, attrs) {		
-				$scope.$watch('[queryResult && queryResult.getData(), visualization.options]', 
-				function (data) {
-						var data = $scope.queryResult.getData();				
-						if ($scope.queryResult.getData() == null) {
-								return;
-							}
-							else {
-							    var cols= $scope.visualization.options.cols || 'cols';
-							    var rows= $scope.visualization.options.rows || 'rows';
-                                var optionsTable = {"rows":rows, "cols":cols}
-								var data = $.extend(true, [], $scope.queryResult.getData());
-								$(element).pivotUI(data, optionsTable, true);					
-							}
-						}, true);
-				}
-		}
-	});
-          
-	module.directive('pivotEditor', function() {
+          if ($scope.queryResult.getData() === null) {
+          } else {
+            // We need to give the pivot table its own copy of the data, because it changes
+            // it which interferes with other visualizations.
+            data = $.extend(true, [], $scope.queryResult.getRawData());
+            var options = {
+              renderers: $.pivotUtilities.renderers,
+              onRefresh: function(config) {
+                var configCopy = $.extend(true, {}, config);
+                //delete some values which are functions
+                delete configCopy.aggregators;
+                delete configCopy.renderers;
+                //delete some bulky default values
+                delete configCopy.rendererOptions;
+                delete configCopy.localeStrings;
+
+                if ($scope.visualization) {
+                  $scope.visualization.options = configCopy;
+                }
+              }
+            };
+
+            if ($scope.visualization) {
+              $.extend(options, $scope.visualization.options);
+            }
+            $(element).pivotUI(data, options, true);
+          }
+        });
+      }
+    };
+  });
+
+  module.directive('pivotEditor', function() {
 	return {
 	 restrict: 'E',
 	 templateUrl: '/views/visualizations/pivot_editor.html'
 	}
 	});
- 
+
+  module.config(['VisualizationProvider', function (VisualizationProvider) {
+    var editTemplate = '<div/>';
+    var defaultOptions = {
+    };
+
+    VisualizationProvider.registerVisualization({
+      type: 'PIVOT',
+      name: 'Pivot Table',
+      renderTemplate: '<pivot-table-renderer visualization="visualization" query-result="queryResult"></pivot-table-renderer>',
+      editorTemplate: editTemplate,
+      defaultOptions: defaultOptions
+    });
+  }]);
 })();

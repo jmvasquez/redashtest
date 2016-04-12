@@ -3,6 +3,39 @@
 
   var directives = angular.module('redash.directives', []);
 
+  directives.directive('appHeader', ['$location', 'Dashboard', 'notifications', function ($location, Dashboard) {
+    return {
+      restrict: 'E',
+      replace: true,
+      templateUrl: '/views/app_header.html',
+      link: function ($scope) {
+        $scope.dashboards = [];
+        $scope.reloadDashboards = function () {
+          Dashboard.query(function (dashboards) {
+            $scope.dashboards = _.sortBy(dashboards, "name");
+            $scope.allDashboards = _.groupBy($scope.dashboards, function (d) {
+              var parts = d.name.split(":");
+              if (parts.length == 1) {
+                return "Other";
+              }
+              return parts[0];
+            });
+            $scope.otherDashboards = $scope.allDashboards['Other'] || [];
+            $scope.groupedDashboards = _.omit($scope.allDashboards, 'Other');
+          });
+        };
+
+        $scope.searchQueries = function() {
+          $location.path('/queries/search').search({q: $scope.term});
+        };
+
+        $scope.reloadDashboards();
+
+        $scope.currentUser = currentUser;
+      }
+    }
+  }]);
+
   directives.directive('alertUnsavedChanges', ['$window', function ($window) {
     return {
       restrict: 'E',
@@ -40,7 +73,20 @@
     }
   }]);
 
-  directives.directive('rdTab', function () {
+  directives.directive('hashLink', ['$location', function($location) {
+    return {
+      restrict: 'A',
+      scope: {
+        'hash': '@'
+      },
+      link: function (scope, element) {
+        var basePath = $location.path().substring(1);
+        element[0].href = basePath + "#" + scope.hash;
+      }
+    };
+  }]);
+
+  directives.directive('rdTab', ['$location', function ($location) {
     return {
       restrict: 'E',
       scope: {
@@ -48,14 +94,26 @@
         'name': '@'
       },
       transclude: true,
-      template: '<li class="rd-tab" ng-class="{active: tabId==selectedTab}"><a href="#{{tabId}}">{{name}}<span ng-transclude></span></a></li>',
+      template: '<li class="rd-tab" ng-class="{active: tabId==selectedTab}"><a href="{{basePath}}#{{tabId}}">{{name}}<span ng-transclude></span></a></li>',
       replace: true,
       link: function (scope) {
+        scope.basePath = $location.path().substring(1);
         scope.$watch(function () {
           return scope.$parent.selectedTab
         }, function (tab) {
           scope.selectedTab = tab;
         });
+      }
+    }
+  }]);
+
+  directives.directive('emailSettingsWarning', function() {
+    return {
+      restrict: 'E',
+      template: '<p class="alert alert-warning" ng-if="showMailWarning">It looks like your mail server isn\'t configured, make sure to configure it for the {{function}} to work.</p>',
+      link: function(scope, elements, attrs) {
+        scope.showMailWarning = clientConfig.mailSettingsMissing && currentUser.isAdmin;
+        scope.function = attrs.function;
       }
     }
   });
@@ -67,9 +125,10 @@
         tabsCollection: '=',
         selectedTab: '='
       },
-      template: '<ul class="nav nav-tabs"><li ng-class="{active: tab==selectedTab}" ng-repeat="tab in tabsCollection"><a href="#{{tab.key}}">{{tab.name}}</a></li></ul>',
+      template: '<ul class="nav nav-tabs"><li ng-class="{active: tab==selectedTab}" ng-repeat="tab in tabsCollection"><a href="{{basePath}}#{{tab.key}}">{{tab.name}}</a></li></ul>',
       replace: true,
       link: function ($scope, element, attrs) {
+        $scope.basePath = $location.path().substring(1);
         $scope.selectTab = function (tabKey) {
           $scope.selectedTab = _.find($scope.tabsCollection, function (tab) {
             return tab.key == tabKey;
@@ -281,4 +340,48 @@
       }
     };
   });
+
+  directives.directive('onDestroy', function () {
+    /* This directive can be used to invoke a callback when an element is destroyed,
+    A useful example is the following:
+    <div ng-if="includeText" on-destroy="form.text = null;">
+      <input type="text" ng-model="form.text">
+    </div>
+    */
+    return {
+      restrict: "A",
+      scope: {
+        onDestroy: "&",
+      },
+      link: function(scope, elem, attrs) {
+        scope.$on('$destroy', function() {
+          scope.onDestroy();
+        });
+      }
+    };
+  });
+
+  directives.directive('colorBox', function () {
+    return {
+      restrict: "E",
+      scope: {color: "="},
+      template: "<span style='width: 12px; height: 12px; background-color: {{color}}; display: inline-block; margin-right: 5px;'></span>"
+    };
+  });
+
+  directives.directive('overlay', function() {
+    return {
+      restrict: "E",
+      transclude: true,
+      template: "" +
+        '<div>' +
+          '<div class="overlay"></div>' +
+          '<div style="width: 100%; position:absolute; top:50px; z-index:2000">' +
+            '<div class="well well-lg" style="width: 70%; margin: auto;" ng-transclude>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+    }
+  })
+
 })();

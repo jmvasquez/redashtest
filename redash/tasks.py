@@ -1,14 +1,21 @@
+import datetime
 import time
 import logging
-from flask.ext.mail import Message
+import signal
+from flask_mail import Message
 import redis
+import hipchat
+import requests
+from redash.utils import json_dumps, base_url
+from requests.auth import HTTPBasicAuth
 from celery import Task
 from celery.result import AsyncResult
 from celery.utils.log import get_task_logger
 from redash import redis_connection, models, statsd_client, settings, utils, mail
 from redash.utils import gen_query_hash
 from redash.worker import celery
-from redash.query_runner import get_query_runner
+from redash.query_runner import InterruptException
+from version_check import run_version_check
 
 #from redash.devspark import custom_tasks
 
@@ -134,7 +141,7 @@ class QueryTask(object):
         return self._async_result.ready()
 
     def cancel(self):
-        return self._async_result.revoke(terminate=True)
+        return self._async_result.revoke(terminate=True, signal='SIGINT')
 
     @staticmethod
     def _job_lock_id(query_hash, data_source_id):
@@ -215,7 +222,10 @@ def cleanup_query_results():
     Each time the job deletes only 100 query results so it won't choke the database in case of many such results.
     """
 
-    unused_query_results = models.QueryResult.unused().limit(100)
+    logging.info("Running query results clean up (removing maximum of %d unused results, that are %d days old or more)",
+                 settings.QUERY_RESULTS_CLEANUP_COUNT, settings.QUERY_RESULTS_CLEANUP_MAX_AGE)
+
+    unused_query_results = models.QueryResult.unused(settings.QUERY_RESULTS_CLEANUP_MAX_AGE).limit(settings.QUERY_RESULTS_CLEANUP_COUNT)
     total_unused_query_results = models.QueryResult.unused().count()
     deleted_count = models.QueryResult.delete().where(models.QueryResult.id << unused_query_results).execute()
 
@@ -228,59 +238,45 @@ def refresh_schemas():
     Refreshs the datasources schema.
     """
 
-    for ds in models.DataSource.all():
+    for ds in models.DataSource.select():
         logger.info("Refreshing schema for: {}".format(ds.name))
-        ds.get_schema(refresh=True)
+        try:
+            ds.get_schema(refresh=True)
+        except Exception:
+            logger.exception("Failed refreshing the data source: %s", ds.name)
 
 
-@celery.task(bind=True, base=BaseTask)
-def check_alerts_for_query(self, query_id):
-    from redash.wsgi import app
-
-    logger.debug("Checking query %d for alerts", query_id)
-    query = models.Query.get_by_id(query_id)
-    for alert in query.alerts:
-        alert.query = query
-        new_state = alert.evaluate()
-        if new_state != alert.state:
-            logger.info("Alert %d new state: %s", alert.id, new_state)
-            old_state = alert.state
-            alert.update_instance(state=new_state)
-
-            if old_state == models.Alert.UNKNOWN_STATE and new_state == models.Alert.OK_STATE:
-                logger.debug("Skipping notification (previous state was unknown and now it's ok).")
-                continue
-
-            # message = Message
-            recipients = [s.email for s in alert.subscribers()]
-            logger.debug("Notifying: %s", recipients)
-            html = """
-            Check <a href="{host}/alerts/{alert_id}">alert</a> / check <a href="{host}/queries/{query_id}">query</a>.
-            """.format(host=settings.HOST, alert_id=alert.id, query_id=query.id)
-
-            with app.app_context():
-                message = Message(recipients=recipients,
-                                  subject="[{1}] {0}".format(alert.name, new_state.upper()),
-                                  html=html)
-
-                mail.send(message)
+def signal_handler(*args):
+    raise InterruptException
 
 
-@celery.task(bind=True, base=BaseTask, track_started=True)
+class QueryExecutionError(Exception):
+    pass
+
+
+# TODO: convert this into a class, to simplify and avoid code duplication for logging
+# class ExecuteQueryTask(BaseTask):
+#     def run(self, ...):
+#         # logic
+@celery.task(bind=True, base=BaseTask, track_started=True, throws=(QueryExecutionError,))
 def execute_query(self, query, data_source_id, metadata):
+    signal.signal(signal.SIGINT, signal_handler)
     start_time = time.time()
 
-    logger.info("Loading data source (%d)...", data_source_id)
+    logger.info("task=execute_query state=load_ds ds_id=%d", data_source_id)
 
-    # TODO: we should probably cache data sources in Redis
     data_source = models.DataSource.get_by_id(data_source_id)
 
     self.update_state(state='STARTED', meta={'start_time': start_time, 'custom_message': ''})
 
-    logger.info("Executing query:\n%s", query)
+    logger.debug("Executing query:\n%s", query)
 
     query_hash = gen_query_hash(query)
-    query_runner = get_query_runner(data_source.type, data_source.options)
+    query_runner = data_source.query_runner
+
+    logger.info("task=execute_query state=before query_hash=%s type=%s ds_id=%d task_id=%s queue=%s query_id=%s username=%s",
+                query_hash, data_source.type, data_source.id, self.request.id, self.request.delivery_info['routing_key'],
+                metadata.get('Query ID', 'unknown'), metadata.get('Username', 'unknown'))
 
     if query_runner.annotate_query():
         metadata['Task ID'] = self.request.id
@@ -298,6 +294,10 @@ def execute_query(self, query, data_source_id, metadata):
     with statsd_client.timer('query_runner.{}.{}.run_time'.format(data_source.type, data_source.name)):
         data, error = query_runner.run_query(annotated_query)
 
+    logger.info("task=execute_query state=after query_hash=%s type=%s ds_id=%d task_id=%s queue=%s query_id=%s username=%s",
+                query_hash, data_source.type, data_source.id, self.request.id, self.request.delivery_info['routing_key'],
+                metadata.get('Query ID', 'unknown'), metadata.get('Username', 'unknown'))
+
     run_time = time.time() - start_time
     logger.info("Query finished... data length=%s, error=%s", data and len(data), error)
 
@@ -307,15 +307,127 @@ def execute_query(self, query, data_source_id, metadata):
     redis_connection.delete(QueryTask._job_lock_id(query_hash, data_source.id))
 
     if not error:
-        query_result, updated_query_ids = models.QueryResult.store_result(data_source.id, query_hash, query, data, run_time, utils.utcnow())
+        query_result, updated_query_ids = models.QueryResult.store_result(data_source.org_id, data_source.id, query_hash, query, data, run_time, utils.utcnow())
+        logger.info("task=execute_query state=after_store query_hash=%s type=%s ds_id=%d task_id=%s queue=%s query_id=%s username=%s",
+                    query_hash, data_source.type, data_source.id, self.request.id, self.request.delivery_info['routing_key'],
+                    metadata.get('Query ID', 'unknown'), metadata.get('Username', 'unknown'))
         for query_id in updated_query_ids:
             check_alerts_for_query.delay(query_id)
+        logger.info("task=execute_query state=after_alerts query_hash=%s type=%s ds_id=%d task_id=%s queue=%s query_id=%s username=%s",
+                    query_hash, data_source.type, data_source.id, self.request.id, self.request.delivery_info['routing_key'],
+                    metadata.get('Query ID', 'unknown'), metadata.get('Username', 'unknown'))
     else:
-        raise Exception(error)
+        raise QueryExecutionError(error)
 
     return query_result.id
 
 
 @celery.task(base=BaseTask)
 def record_event(event):
+    original_event = event.copy()
     models.Event.record(event)
+    for hook in settings.EVENT_REPORTING_WEBHOOKS:
+        logging.debug("Forwarding event to: %s", hook)
+        try:
+            response = requests.post(hook, original_event)
+            if response.status_code != 200:
+                logging.error("Failed posting to %s: %s", hook, response.content)
+        except Exception:
+            logging.exception("Failed posting to %s", hook)
+
+
+@celery.task(base=BaseTask)
+def version_check():
+    run_version_check()
+
+
+@celery.task(bind=True, base=BaseTask)
+def check_alerts_for_query(self, query_id):
+    from redash.wsgi import app
+
+    logger.debug("Checking query %d for alerts", query_id)
+    query = models.Query.get_by_id(query_id)
+    for alert in query.alerts:
+        alert.query = query
+        new_state = alert.evaluate()
+        passed_rearm_threshold = False
+        if alert.rearm and alert.last_triggered_at:
+            passed_rearm_threshold = alert.last_triggered_at + datetime.timedelta(seconds=alert.rearm) < utils.utcnow()
+        if new_state != alert.state or (alert.state == models.Alert.TRIGGERED_STATE and passed_rearm_threshold ):
+            logger.info("Alert %d new state: %s", alert.id, new_state)
+            old_state = alert.state
+            alert.update_instance(state=new_state, last_triggered_at=utils.utcnow())
+
+            if old_state == models.Alert.UNKNOWN_STATE and new_state == models.Alert.OK_STATE:
+                logger.debug("Skipping notification (previous state was unknown and now it's ok).")
+                continue
+
+            # message = Message
+            html = """
+            Check <a href="{host}/alerts/{alert_id}">alert</a> / check <a href="{host}/queries/{query_id}">query</a>.
+            """.format(host=base_url(alert.query.org), alert_id=alert.id, query_id=query.id)
+
+            notify_mail(alert, html, new_state, app)
+
+            if settings.HIPCHAT_API_TOKEN:
+                notify_hipchat(alert, html, new_state)
+
+            if settings.WEBHOOK_ENDPOINT:
+                notify_webhook(alert, query, html, new_state)
+
+
+def notify_hipchat(alert, html, new_state):
+    try:
+        if settings.HIPCHAT_API_URL:
+            hipchat_client = hipchat.HipChat(token=settings.HIPCHAT_API_TOKEN, url=settings.HIPCHAT_API_URL)
+        else:
+            hipchat_client = hipchat.HipChat(token=settings.HIPCHAT_API_TOKEN)
+        message = '[' + new_state.upper() + '] ' + alert.name + '<br />' + html
+        hipchat_client.message_room(settings.HIPCHAT_ROOM_ID, settings.NAME, message.encode('utf-8', 'ignore'), message_format='html')
+    except Exception:
+        logger.exception("hipchat send ERROR.")
+
+
+def notify_mail(alert, html, new_state, app):
+    recipients = [s.email for s in alert.subscribers()]
+    logger.debug("Notifying: %s", recipients)
+    try:
+        with app.app_context():
+            message = Message(recipients=recipients,
+                              subject="[{1}] {0}".format(alert.name.encode('utf-8', 'ignore'), new_state.upper()),
+                              html=html)
+            mail.send(message)
+    except Exception:
+        logger.exception("mail send ERROR.")
+
+
+def notify_webhook(alert, query, html, new_state):
+    try:
+        data = {
+            'event': 'alert_state_change',
+            'alert': alert.to_dict(full=False),
+            'url_base': base_url(query.org)
+        }
+        headers = {'Content-Type': 'application/json'}
+        auth = HTTPBasicAuth(settings.WEBHOOK_USERNAME, settings.WEBHOOK_PASSWORD) if settings.WEBHOOK_USERNAME else None
+        resp = requests.post(settings.WEBHOOK_ENDPOINT, data=json_dumps(data), auth=auth, headers=headers)
+        if resp.status_code != 200:
+            logger.error("webhook send ERROR. status_code => {status}".format(status=resp.status_code))
+    except Exception:
+        logger.exception("webhook send ERROR.")
+
+
+@celery.task(base=BaseTask)
+def send_mail(to, subject, html, text):
+    from redash.wsgi import app
+
+    try:
+        with app.app_context():
+            message = Message(recipients=to,
+                              subject=subject,
+                              html=html,
+                              body=text)
+
+            mail.send(message)
+    except Exception:
+        logger.exception('Failed sending message: %s', message.subject)

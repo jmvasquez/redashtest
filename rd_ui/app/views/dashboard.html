@@ -1,20 +1,29 @@
 <new-widget-form dashboard="dashboard"></new-widget-form>
 <edit-dashboard-form dashboard="dashboard" id="edit_dashboard_dialog"></edit-dashboard-form>
 
-<div class="container">
+<div ng-class="isFullscreen ? 'container-fluid' : 'container'">
     <p class="alert alert-warning" ng-if="dashboard.is_archived">This dashboard is archived and won't appear in the dashboards list or search results.</p>
     <h2 id="dashboard_title">
         {{dashboard.name}}
 
-        <span ng-if="!dashboard.is_archived">
+        <span ng-if="!dashboard.is_archived && !public" class="hidden-print">
             <button type="button" class="btn btn-default btn-xs" ng-class="{active: refreshEnabled}" tooltip="Enable/Disable Auto Refresh" ng-click="triggerRefresh()"><span class="glyphicon glyphicon-refresh"></span></button>
-            <div class="btn-group" role="group" ng-show="dashboard.canEdit()">
+            <button type="button" class="btn btn-default btn-xs" ng-class="{active: isFullscreen}" tooltip="Enable/Disable Fullscreen display" ng-click="toggleFullscreen()"><span class="fa fa-arrows-alt"></span></button>
+            <div class="btn-group pull-right" role="group" ng-show="dashboard.canEdit()">
                 <button type="button" class="btn btn-default btn-xs" data-toggle="modal" href="#edit_dashboard_dialog" tooltip="Edit Dashboard (Name/Layout)"><span
                         class="glyphicon glyphicon-cog"></span></button>
                 <button type="button" class="btn btn-default btn-xs" data-toggle="modal"
                         href="#add_query_dialog" tooltip="Add Widget (Chart/Table/Pivot)"><span class="glyphicon glyphicon-plus"></span>
                 </button>
                 <button class="btn btn-danger btn-xs" ng-click="archiveDashboard()" ng-if="!dashboard.is_archived" tooltip="Archive"><i class="fa fa-archive"></i></button>
+
+                 <button class="btn btn-xs btn-default" tooltip="Share" ng-click="openShareForm()"><i class="fa fa-share-alt"></i></button>
+                 <button type="button" class="btn btn-default btn-xs" data-toggle="modal" href="#edit_dashboard_dialog" tooltip="Edit Dashboard (Name/Layout)"><span
+                        class="glyphicon glyphicon-cog"></span></button>
+                 <button type="button" class="btn btn-default btn-xs" data-toggle="modal"
+                    href="#add_query_dialog" tooltip="Add Widget (Chart/Table)"><span class="glyphicon glyphicon-plus"></span>
+                 </button>
+                 <button class="btn btn-danger btn-xs" ng-click="archiveDashboard()" ng-if="!dashboard.is_archived" tooltip="Archive"><i class="fa fa-archive"></i></button>
             </div>
         </span>
         <button style="float: right;" type="button" class="btn btn-default" title="Collapse all widgets." ng-click="changeCollapseValues(true)">
@@ -33,12 +42,12 @@
         </button>
         <span title="{{isFavorite ? 'Remove from favorites' : 'Add to favorites'}}" class="pull-left fa dashboard-favorite-icon"
               ng-click="isFavorite = !isFavorite; toggleFavorite(isFavorite)" ng-class="{'fa-star' : isFavorite, 'fa-star-o': !isFavorite}"></span>
+        </span>
     </h2>
 
     <filters ng-if="dashboard.dashboard_filters_enabled"></filters>
 </div>
-
-<div class="container" id="dashboard">
+<div ng-class="isFullscreen ? 'container-fluid' : 'container'" id="dashboard">
     <div ng-repeat="row in dashboard.widgets" class="row">
         <div ng-repeat="widget in row" class="col-lg-{{widget.width | colWidth}}"
              ng-controller="WidgetCtrl" id="{{widget.id}}">
@@ -52,6 +61,7 @@
                         <p>
                             <span ng-show="!widget.isCollapsed" ng-click="widget.isCollapsed = !widget.isCollapsed" style="cursor: pointer" class="glyphicon glyphicon-chevron-down btn-xs" ng-init="collapseValue()"></span>
                             <span ng-show="widget.isCollapsed" ng-click="widget.isCollapsed = !widget.isCollapsed" style="cursor: pointer; transform: rotate(90deg); vertical-align: middle;" class="glyphicon glyphicon-chevron-up btn-xs"></span>
+                        <p class="hidden-print">
                             <span ng-hide="currentUser.hasPermission('view_query')">{{query.name}}</span>
                             <span style="float: right">
                                 <input type="checkbox" ng-model="widget.options.exportable.isExportable"> Exportable
@@ -62,6 +72,10 @@
                             <img src="/images/spinner.gif"/>
                         </span>
                             <visualization-name visualization="widget.visualization"/>
+                        </p>
+                        <p class="visible-print">
+                          {{query.name}}
+                          <visualization-name visualization="widget.visualization"/>
                         </p>
                         <div class="text-muted" ng-bind-html="query.description | markdown"></div>
                     </h3>
@@ -74,22 +88,42 @@
                     <visualization-renderer visualization="widget.visualization" query-result="queryResult"></visualization-renderer class="panel-body">
                 </div>
 
-
                 <div class="panel-footer" collapse="widget.isCollapsed">
-                    <span class="label label-default"
+                    <span class="label label-default hidden-print"
                           tooltip="(query runtime: {{queryResult.getRuntime() | durationHumanize}})"
                           tooltip-placement="bottom">Updated: <span am-time-ago="queryResult.getUpdatedAt()"></span></span>
 
-                    <span class="pull-right">
-                        <a class="btn btn-default btn-xs" ng-href="/queries/{{query.id}}#{{widget.visualization.id}}" ng-show="currentUser.hasPermission('view_query')"><span class="glyphicon glyphicon-link"></span></a>
-                        <button type="button" class="btn btn-default btn-xs" ng-show="dashboard.canEdit()" ng-click="deleteWidget()" title="Remove Widget"><span class="glyphicon glyphicon-trash"></span></button>
+                    <span class="visible-print">
+                      Updated: {{queryResult.getUpdatedAt() | dateTime}}
                     </span>
 
-                    <span class="pull-right">
-                        <a class="btn btn-default btn-xs" ng-disabled="!queryResult.getData()" query-result-link target="_self">
-                            <span class="glyphicon glyphicon-cloud-download"></span>
+                    <span class="pull-right hidden-print" ng-if="!public">
+
+                      <div class="btn-group">
+                        <a class="btn btn-default btn-xs" ng-disabled="!queryResult.getData()" query-result-link target="_self" title="Download as CSV File">
+                            <span class="fa fa-file-o"></span>
                         </a>
+                        <a class="btn btn-default btn-xs" ng-disabled="!queryResult.getData()" file-type="xlsx" query-result-link target="_self" title="Download as Excel File">
+                            <i class="fa fa-file-excel-o"></i>
+                        </a>
+                      </div>
+                      <a class="btn btn-default btn-xs" ng-href="queries/{{query.id}}#{{widget.visualization.id}}" ng-show="currentUser.hasPermission('view_query')"><span class="glyphicon glyphicon-link"></span></a>
+                      <button type="button" class="btn btn-default btn-xs" ng-show="dashboard.canEdit()" ng-click="deleteWidget()" title="Remove Widget"><span class="glyphicon glyphicon-trash"></span></button>
                     </span>
+                </div>
+            </div>
+            <div class="panel panel-default rd-widget-textbox" ng-if="type=='restricted'">
+                <div class="panel-body">
+                    <div class="row">
+                        <div class="col-lg-12">
+                            <div class="text-center">
+                                <h1><span class="glyphicon glyphicon-lock"></span></h1>
+                                <p class="text-muted">
+                                    This widget requires access to a data source you don't have access to.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="panel panel-default rd-widget-textbox" ng-hide="widget.width == 0" ng-if="type=='textbox'" ng-mouseenter="showControls = true" ng-mouseleave="showControls = false">
