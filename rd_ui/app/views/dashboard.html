@@ -9,27 +9,20 @@
         <span ng-if="!dashboard.is_archived && !public" class="hidden-print">
             <button type="button" class="btn btn-default btn-xs" ng-class="{active: refreshEnabled}" tooltip="Enable/Disable Auto Refresh" ng-click="triggerRefresh()"><span class="glyphicon glyphicon-refresh"></span></button>
             <button type="button" class="btn btn-default btn-xs" ng-class="{active: isFullscreen}" tooltip="Enable/Disable Fullscreen display" ng-click="toggleFullscreen()"><span class="fa fa-arrows-alt"></span></button>
-            <div class="btn-group pull-right" role="group" ng-show="dashboard.canEdit()">
-                <button type="button" class="btn btn-default btn-xs" data-toggle="modal" href="#edit_dashboard_dialog" tooltip="Edit Dashboard (Name/Layout)"><span
-                        class="glyphicon glyphicon-cog"></span></button>
-                <button type="button" class="btn btn-default btn-xs" data-toggle="modal"
-                        href="#add_query_dialog" tooltip="Add Widget (Chart/Table/Pivot)"><span class="glyphicon glyphicon-plus"></span>
-                </button>
-                <button class="btn btn-danger btn-xs" ng-click="archiveDashboard()" ng-if="!dashboard.is_archived" tooltip="Archive"><i class="fa fa-archive"></i></button>
-
+            <div class="btn-group" role="group" ng-show="dashboard.canEdit()">
                  <button class="btn btn-xs btn-default" tooltip="Share" ng-click="openShareForm()"><i class="fa fa-share-alt"></i></button>
                  <button type="button" class="btn btn-default btn-xs" data-toggle="modal" href="#edit_dashboard_dialog" tooltip="Edit Dashboard (Name/Layout)"><span
                         class="glyphicon glyphicon-cog"></span></button>
                  <button type="button" class="btn btn-default btn-xs" data-toggle="modal"
-                    href="#add_query_dialog" tooltip="Add Widget (Chart/Table)"><span class="glyphicon glyphicon-plus"></span>
+                    href="#add_query_dialog" tooltip="Add Widget (Chart/Table/Pivot)"><span class="glyphicon glyphicon-plus"></span>
                  </button>
                  <button class="btn btn-danger btn-xs" ng-click="archiveDashboard()" ng-if="!dashboard.is_archived" tooltip="Archive"><i class="fa fa-archive"></i></button>
             </div>
         </span>
-        <button style="float: right;" type="button" class="btn btn-default" title="Collapse all widgets." ng-click="changeCollapseValues(true)">
+        <button style="float: right; font-weight: bold; margin-right: 5px" type="button" class="btn btn-default" title="Collapse all widgets." ng-click="changeCollapseValues(true)">
             Collapse
         </button>
-        <button style="float: right; margin-right: 5px;" type="button" class="btn btn-default" title="Expand all widgets." ng-click="changeCollapseValues(false)">
+        <button style="float: right; font-weight: bold; margin-right: 5px" type="button" class="btn btn-default" title="Expand all widgets." ng-click="changeCollapseValues(false)">
             Expand
         </button>
         <button style="float: right; margin-right: 5px;" type="button" class="btn btn-danger" ng-click="exportWidgetsToPdf()" title="Export Widgets to PDF." ng-disabled="downloadingPDF">
