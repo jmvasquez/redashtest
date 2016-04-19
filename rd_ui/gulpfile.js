@@ -7,6 +7,8 @@ var lazypipe = require('lazypipe');
 var rimraf = require('rimraf');
 var wiredep = require('wiredep').stream;
 var runSequence = require('run-sequence');
+var debug = require('gulp-debug');
+var gulpUtil = require('gulp-util');
 
 var yeoman = {
   app: 'app',
@@ -77,7 +79,7 @@ gulp.task('client:build', ['html', 'styles'], function () {
   return gulp.src(paths.views.main)
     .pipe($.useref({searchPath: [yeoman.app, '.tmp']}))
     .pipe(jsFilter)
-    .pipe($.ngAnnotate())
+    .pipe($.ngAnnotate().on('error', gulpUtil.log))
     .pipe($.uglify())
     .pipe(jsFilter.restore())
     .pipe($.print())

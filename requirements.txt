@@ -34,7 +34,6 @@ wtf-peewee==0.2.3
 pysaml2==2.4.0
 pycrypto==2.6.1
 funcy==1.5
-XlsxWriter==0.7.7
 raven==5.9.2
 semver==2.2.1
 python-simple-hipchat==0.4.0

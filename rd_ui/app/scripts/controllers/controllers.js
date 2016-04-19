@@ -13,7 +13,7 @@
     $scope.gridConfig = {
       isPaginationEnabled: true,
       itemsByPage: 50,
-      maxSize: 8,
+      maxSize: 8
     };
 
     $scope.gridColumns = [

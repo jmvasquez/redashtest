@@ -711,6 +711,6 @@
       .factory('Widget', ['$resource', 'Query', Widget])
       .factory('User', ['$resource', '$http', User])
       .factory('Parameters', [Parameters])
-      .factory('FavoriteDashboards', ['$resource', FavoriteDashboards]);
+      .factory('FavoriteDashboards', ['$resource', FavoriteDashboards])
       .factory('Group', ['$resource', Group]);
 })();
