@@ -12,7 +12,7 @@ from redash import settings
 from redash.query_runner import import_query_runners
 
 
-__version__ = '1.1.2-cip'
+__version__ = '1.1.3-cip'
 
 if settings.FEATURE_TABLES_PERMISSIONS:
     # TODO(@arikfr): remove this warning on next version release
