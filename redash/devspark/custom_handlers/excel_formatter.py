@@ -3,7 +3,7 @@ import tempfile
 import datetime
 from flask import Flask, request, make_response
 from flask_login import login_required
-from redash.wsgi import app
+from redash.handlers import routes
 
 def generate_first_page(workbook, filters, reports):
     titleFormat = workbook.add_format({
@@ -113,7 +113,7 @@ def generate_first_page(workbook, filters, reports):
         rowIdx += 1
         colIdx = 2
 
-@app.route('/api/dashboard/generate_excel', methods=['POST'])
+@routes.route('/api/dashboard/generate_excel', methods=['POST'])
 def generate_excel():
     #app.logger.debug(request.json)
 

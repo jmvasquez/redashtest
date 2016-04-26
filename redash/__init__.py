@@ -78,6 +78,7 @@ class SlugConverter(BaseConverter):
 
 def create_app():
     from redash import handlers
+    from redash.devspark import custom_handlers
     from redash.admin import init_admin
     from redash.models import db
     from redash.authentication import setup_authentication
