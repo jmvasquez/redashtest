@@ -1,0 +1,44 @@
+<form id="formito" class="inputdates">
+    <div class="form-group">
+        <div class="input-group input-group-sm hidden"> <input type="hidden" name="maxAge" class="form-control" value="300"> </div>
+        <div class="input-group input-group-sm"> <span class="input-group-addon">Start Date</span> <input id="start_date_input" type="date" name="p_startdate" class="form-control" placeholder="YYYY-MM-DD"> <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span> </div> <br>
+        <div class="input-group input-group-sm"> <span class="input-group-addon">End Date&nbsp;</span> <input id="end_date_input" type="date" name="p_enddate" class="form-control" placeholder="YYYY-MM-DD"> <span class="input-group-addon"><i class="glyphicon glyphicon-calendar"></i></span> </div><br>
+        <div><button id="botoncito" class="btn btn-primary">Search</button></div>
+    </div>
+</form>
+<script>
+    function getParameters() {
+        var loc = document.location.href;
+        if (loc.indexOf('?') > 0) {
+            var getString = loc.split('?')[1];
+            var getArr = getString.split('&');
+            var get = [];
+            for (var i = 0; i < getArr.length; i++) {
+                var tmp = getArr[i].split('=');
+                get[tmp[0]] = unescape(decodeURI(tmp[1]));
+            }
+            return get;
+        }
+    }
+
+    function storeParameters() {
+        var arrayParameters = getParameters();
+        var p_startdate = arrayParameters['p_startdate'];
+        var p_enddate = arrayParameters['p_enddate'];
+        console.log("Variables " + p_startdate);
+        document.getElementsByName("p_startdate")[0].value = p_startdate;
+        document.getElementsByName("p_enddate")[0].value = p_enddate;
+    }
+
+    $(document).ready(function() {
+        storeParameters();
+      /*
+        $("#formito").submit(function(e) {
+          e.preventDefault();
+          url = `${document.location.href}?p_startdate=${document.getElementsByName("p_startdate")[0].value}&p_enddate=${document.getElementsByName("p_enddate")[0].value}`;
+          console.log(url);
+          //document.location.href = url;
+        });
+        */
+    });
+</script>
