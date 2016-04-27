@@ -245,6 +245,10 @@
         });
       });
 
+      FavoriteDashboards.getFavoriteStatus({dashboardId: $scope.dashboard.id}, function(result) {
+        $scope.isFavorite = result.flag;
+      });
+
       $q.all(promises).then(function(queryResults) {
         var filters = {};
         _.each(queryResults, function(queryResult) {
